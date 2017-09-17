@@ -1,0 +1,149 @@
+<meta charset=utf-8>
+<input id=lolbox autofocus>
+<script>
+(function() {
+    // todo: make this swappable with a JSON (or similar) file
+    const inputMethod = new Map([
+        ["I", "ɪ"],
+        ["/3", "ɛ"],
+        ["E", "ɛ"],
+        ["ae", "æ"],
+        ["i-", "ɨ"],
+        ["/e", "ə"],
+        ["/a", "ɐ"],
+        ["/m", "ɯ"],
+        ["&", "ɤ"],
+        ["/v", "ʌ"],
+        ["A", "ɑ"],
+        ["o|", "ɑ"],
+        ["y", "y"],
+        ["Y", "ʏ"],
+        ["o/", "ø"],
+        ["oe", "œ"],
+        ["OE", "ɶ"],
+        ["u-", "ʉ"],
+        ["o-", "ɵ"],
+        ["U", "ʊ"],
+        ["/c", "ɔ"],
+        ["/A", "ɒ"],
+        ["|o", "ɒ"],
+        ["e-", "ɚ"],
+        ["e|", "ɚ"],
+        ["/3~", "ɛ̃"],
+        ["E~", "ɛ̃"],
+        ["A~", "ɑ̃"],
+        ["oe~", "œ̃"],
+        ["/c~", "ɔ̃"],
+        ["g", "ɡ"],
+        ["th", "θ"],
+        ["dh", "ð"],
+        ["sh", "ʃ"],
+        ["zh", "ʒ"],
+        ["3", "ʒ"],
+        ["c,", "ç"],
+        ["x", "x"],
+        ["/R", "ʁ"],
+        ["h", "h"],
+        ["m", "m"],
+        ["n", "n"],
+        ["gn", "ɲ"],
+        ["ng", "ŋ"],
+        ["R", "ʀ"],
+        ["/r", "ɹ"],
+        ["/y", "ʎ"],
+        ["L", "ʟ"],
+        ["/h", "ɥ"],
+        ["w", "w"],
+        ["M", "ʍ"],
+        ["'", "ˈ"],
+        ["`", "ˌ"],
+        [":", "ː"],
+    ]);
+    let targetBox = document.getElementById('lolbox');
+    
+    let hasPrefixOf = function (prefix) {
+        // todo: make this a binary search or something equally fast
+        for (let sequence of inputMethod.keys()) {
+            if (sequence.startsWith(prefix) && prefix !== sequence) {
+                return true;
+            }
+        };
+        return false;
+    };
+
+    let rawPrefix = '';
+    let selectionStart = 0;
+    let preserveSelectionStart = false;
+    let insertAtCaret = function (text) {
+        // modified from J. Harmon, stack overflow 1064089
+        let scrollPos = targetBox.scrollTop;
+        let caretPos = selectionStart;
+
+        let front = (targetBox.value).substring(0, caretPos);
+        let back = (targetBox.value).substring(targetBox.selectionEnd, targetBox.value.length);
+        targetBox.value = front + text + back;
+        caretPos = caretPos + text.length;
+        targetBox.selectionStart = caretPos;
+        targetBox.selectionEnd = caretPos;
+        targetBox.focus();
+        targetBox.scrollTop = scrollPos;
+    }
+    
+    targetBox.addEventListener('beforeinput', function (e) {
+        if (e.inputType !== 'insertText') { return; } // todo: handle this better
+        
+        let chord = rawPrefix + e.data,
+            hasFurtherPrefix = hasPrefixOf(chord);
+        console.log([rawPrefix, e.data, hasFurtherPrefix, selectionStart]);
+        
+        if (rawPrefix !== '') {
+            // we're in the middle of typing a chord
+            if (inputMethod.has(chord) && !hasFurtherPrefix) {
+                // we've finished this chord, there's no possible way to continue it
+                e.preventDefault();
+                insertAtCaret(inputMethod.get(chord));
+                rawPrefix = '';
+                hasFurtherPrefix = hasPrefixOf(e.data);
+            } else if (!inputMethod.has(chord) && hasFurtherPrefix) {
+                // the chord might be continuing but this isn't a possible completion of it
+                rawPrefix = chord;
+                preserveSelectionStart = true;
+            } else if (inputMethod.has(chord) && hasFurtherPrefix) {
+                // we've typed a valid chord but it's possible to add more keys to it
+                e.preventDefault();
+                insertAtCaret(inputMethod.get(chord));
+                rawPrefix = chord;
+                preserveSelectionStart = true;
+            } else {
+                // we don't have a chord and there's no further keys
+                hasFurtherPrefix = hasPrefixOf(e.data);
+                chord = e.data;
+                selectionStart = targetBox.selectionStart;
+            }
+        }
+        
+        if (chord === e.data) {
+            // we're not in the middle of typing a chord (any more)
+            if (inputMethod.has(e.data)) {
+                // this is a chord of one key
+                selectionStart = targetBox.selectionStart;
+                e.preventDefault();
+                insertAtCaret(inputMethod.get(e.data));
+                hasFurtherPrefix = hasPrefixOf(e.data);
+            }
+            if (hasFurtherPrefix) {
+                // this could be the start of a chord of multiple keys
+                rawPrefix = chord;
+                preserveSelectionStart = true;
+            }
+        }
+    });
+    document.addEventListener('selectionchange', function (e) {
+        if (!preserveSelectionStart) {
+            selectionStart = targetBox.selectionStart;
+            rawPrefix = '';
+        }
+        preserveSelectionStart = false;
+    });
+})();
+</script>
